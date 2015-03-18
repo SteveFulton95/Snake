@@ -2,7 +2,7 @@
 ; Course:			cpsc 370
 ; Instructor:			Dr. Conlon
 ; Date started:			February 7, 2015
-; Last modification:		March 9, 2015
+; Last modification:		March 18, 2015
 ; Purpose of programe:		Snake game.
 
 	.CR	6502		; Assemble 6502 language
