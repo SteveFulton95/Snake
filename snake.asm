@@ -18,6 +18,9 @@ playerLocL	= $15
 playerLocH	= $16
 direction	= $17
 
+foodL = $18
+foodH = $19
+
 ; w - #$77
 ; a - #$61
 ; s - #$73
@@ -37,6 +40,7 @@ start
 		jsr initBorder
 		jsr initInput
 		jsr initPlayer
+		jsr initFood
 		jmp gameLoop
 		
 initBorder
@@ -91,6 +95,28 @@ initPlayer
 		sta (playerLocL),y	;draws the player in start loc
 		lda #$64			;starts the player moving right
 		sta direction
+		rts
+		
+initFood		;this doesnt really work
+		ldy #0
+		lda #$20
+		sta (foodL),y
+		lda iocmd
+		adc playerLocH
+		lsr
+		sbc playerLocL
+		and #%00000011
+		clc
+		adc #$70
+		sta foodH
+		
+		lda playerLocL
+		sbc tempL
+		rol
+		and #%01111111
+		sta foodL
+		lda #$22
+		sta (foodL),y
 		rts
 		
 gameLoop
@@ -208,9 +234,82 @@ erase
 		sta (playerLocL),y	;erases the previous loc
 		rts
 
+eatFood
+		jsr initFood
+		rts
+		
 checkCollision
 		jsr snakeCollision
 		jsr borderCollision
+		jsr foodCollision
+		rts
+		
+foodCollision
+		lda direction
+		cmp up
+		beq foodUp
+		cmp down
+		beq foodDown
+		cmp left
+		beq foodLeft
+		cmp right
+		beq foodRight
+		rts
+foodUp
+		sec
+		lda playerLocL
+		sbc #40
+		sta tempL
+		lda playerLocH
+		sbc #0
+		sta tempH
+				
+		ldy #0
+		lda (tempL),y
+		cmp #$22
+		beq	eatFood
+		rts
+foodDown
+		clc
+		lda playerLocL
+		adc #40
+		sta tempL
+		lda playerLocH
+		adc #0
+		sta tempH
+				
+		ldy #0
+		lda (tempL),y
+		cmp #$22
+		beq	eatFood
+		rts
+foodLeft
+		sec
+		lda playerLocL
+		sbc #1
+		sta tempL
+		lda playerLocH
+		sbc #0
+		sta tempH
+		
+		ldy #00
+		lda (tempL),y
+		cmp #$22
+		beq eatFood
+		rts
+foodRight
+		clc
+		lda playerLocL
+		adc #1
+		sta tempL
+		lda playerLocH
+		adc #0
+		sta tempH
+		
+		ldy #00
+		lda (tempL),y
+		cmp #$22
+		beq eatFood
 		rts
 		
 snakeCollision
@@ -239,7 +338,7 @@ borderUp
 		ldy #0
 		lda (tempL),y
 		cmp #$20
-		bne gameOver
+		bne foodTest
 		rts
 borderDown
 		clc
@@ -248,11 +347,12 @@ borderDown
 		sta tempL
 		lda playerLocH
 		adc #0
-		sta tempH		
+		sta tempH
+		
 		ldy #0
 		lda (tempL),y
 		cmp #$20
-		bne gameOver
+		bne foodTest
 		rts
 borderLeft
 		lda playerLocL
@@ -272,6 +372,12 @@ colRight
 		lda playerLocH
 		cmp #$73
 		beq gameOver
+		rts
+		
+foodTest
+		lda (tempL),y
+		cmp #$22
+		bne gameOver
 		rts
 		
 gameOver
