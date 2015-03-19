@@ -2,7 +2,7 @@
 ; Course:			cpsc 370
 ; Instructor:			Dr. Conlon
 ; Date started:			February 7, 2015
-; Last modification:		March 18, 2015
+; Last modification:		March 19, 2015
 ; Purpose of programe:		snake game.
 
 	.CR	6502		; Assemble 6502 language
@@ -27,41 +27,40 @@ down	= $11
 left	= $12
 right	= $13
 
+tempL	= $20
+tempH	= $21
+
 	
 		.OR $0300
 start	
 		jsr clearScreen
+		jsr initBorder
 		jsr initInput
 		jsr initPlayer
 		jmp gameLoop
 		
-clearScreen 
-		lda #$00
-		sta $03		;storing the low byte of the screen
-		lda #$70
-		sta $04		;storing the high byte of the screen
+initBorder
+		lda #$d8
+		sta $30
+		lda #$6f
+		sta $31
 		ldy #0
-		ldx #25
-		
-clear
-		lda #$20	;loading space into accumulator
-		sta ($03),y	;storing space into the appropriate screen address
+		jsr borderLoop
+		lda #$e8
+		sta $30
+		lda #$73
+		sta $31
+		ldy #0
+		jsr borderLoop
+		rts
+borderLoop
+		lda #$20
+		sta ($30),y
 		iny
-		cpy #$28	;test if row was cleared
-		bne clear
+		cpy #$28
+		bne borderLoop
+		rts
 		
-		;changing rows
-		clc
-		ldy #0	;reseting the y register
-		lda $03	;loading the value in memory 03
-		adc #40	;adding 40 to that value
-		sta $03	;storing it back into memory 03
-		lda $04
-		adc #00
-		sta $04
-		dex		;decrementing x for the row counter
-		cpx #$00 ;if the x register is 0 then we have cleared the screen
-		bne clear	;branches if we aren't done clearing the screen
 		
 initInput
 		cli
@@ -157,6 +156,7 @@ moveUp
 		
 		lda #$21
 		sta (playerLocL),y
+		jsr checkCollision
 		rts
 moveDown
 		jsr erase
@@ -170,6 +170,7 @@ moveDown
 		
 		lda #$21
 		sta (playerLocL),y
+		jsr checkCollision
 		rts
 moveLeft
 		jsr erase
@@ -183,6 +184,7 @@ moveLeft
 		
 		lda #$21
 		sta (playerLocL),y
+		jsr checkCollision
 		rts
 
 moveRight
@@ -197,13 +199,112 @@ moveRight
 		
 		lda #$21
 		sta (playerLocL),y	;draws the current loc
+		jsr checkCollision
 		rts
 
 erase
 		ldy #0
 		lda #$20
 		sta (playerLocL),y	;erases the previous loc
+		rts
+
+checkCollision
+		jsr snakeCollision
+		jsr borderCollision
+		rts
 		
+snakeCollision
+		rts
+		
+borderCollision
+		lda direction
+		cmp up
+		beq borderUp
+		cmp down
+		beq borderDown
+		cmp left
+		beq borderLeft
+		cmp right
+		beq borderRight
+		rts
+borderUp
+		sec
+		lda playerLocL
+		sbc #40
+		sta tempL
+		lda playerLocH
+		sbc #0
+		sta tempH
+				
+		ldy #0
+		lda (tempL),y
+		cmp #$20
+		bne gameOver
+		rts
+borderDown
+		clc
+		lda playerLocL
+		adc #40
+		sta tempL
+		lda playerLocH
+		adc #0
+		sta tempH		
+		ldy #0
+		lda (tempL),y
+		cmp #$20
+		bne gameOver
+		rts
+borderLeft
+		lda playerLocL
+		cmp #$ff
+		beq colLeft
+		rts
+colLeft
+		lda playerLocH
+		cmp #$6f
+		beq gameOver
+borderRight
+		lda playerLocL
+		cmp #$e9
+		beq colRight
+		rts
+colRight
+		lda playerLocH
+		cmp #$73
+		beq gameOver
+		rts
+		
+gameOver
+		jmp start
+
+clearScreen 
+		lda #$00
+		sta $03		;storing the low byte of the screen
+		lda #$70
+		sta $04		;storing the high byte of the screen
+		ldy #0
+		ldx #25
+		
+clear
+		lda #$20	;loading space into accumulator
+		sta ($03),y	;storing space into the appropriate screen address
+		iny
+		cpy #$28	;test if row was cleared
+		bne clear
+		
+		;changing rows
+		clc
+		ldy #0	;reseting the y register
+		lda $03	;loading the value in memory 03
+		adc #40	;adding 40 to that value
+		sta $03	;storing it back into memory 03
+		lda $04
+		adc #00
+		sta $04
+		dex		;decrementing x for the row counter
+		cpx #$00 ;if the x register is 0 then we have cleared the screen
+		bne clear	;branches if we aren't done clearing the screen
+
 		
 delay
 		txa
@@ -238,9 +339,6 @@ loop3
 		pla
 		tax
 		rts
-		
-gameOver
-		jmp start
 
 		
 		
