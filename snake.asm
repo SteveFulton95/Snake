@@ -18,8 +18,11 @@ playerLocL	= $15
 playerLocH	= $16
 direction	= $17
 
-foodL = $18
-foodH = $19
+foodL	= $18
+foodH	= $19
+
+borderL	= $30
+borderH	= $31
 
 ; w - #$77
 ; a - #$61
@@ -36,6 +39,7 @@ tempH	= $21
 	
 		.OR $0300
 start	
+		cli
 		jsr clearScreen
 		jsr initBorder
 		jsr initInput
@@ -45,21 +49,21 @@ start
 		
 initBorder
 		lda #$d8
-		sta $30
+		sta borderL
 		lda #$6f
-		sta $31
+		sta borderH
 		ldy #0
 		jsr borderLoop
 		lda #$e8
-		sta $30
+		sta borderL
 		lda #$73
-		sta $31
+		sta borderH
 		ldy #0
 		jsr borderLoop
 		rts
 borderLoop
-		lda #$20
-		sta ($30),y
+		lda #$30
+		sta (borderL),y
 		iny
 		cpy #$28
 		bne borderLoop
@@ -121,44 +125,23 @@ initFood		;this doesnt really work
 		
 gameLoop
 		jsr getInput
+		jsr checkCollision
 		jsr drawPlayer
 		jsr delay
 		jmp gameLoop
+		
 getInput
 		lda iostat		;read the ACIA status
 		and #%00001000	;checking if its empty
-		beq drawPlayer
+		beq updatePlayer
 		
+updateDirection
+		lda iobase
+		sta direction
+		jsr updatePlayer
+		rts
+
 updatePlayer
-		lda iobase
-		cmp up
-		beq directionUp
-		cmp down
-		beq directionDown
-		cmp left
-		beq directionLeft
-		cmp right
-		beq directionRight
-		rts
-		
-directionUp
-		lda iobase
-		sta direction
-		rts
-directionDown
-		lda iobase
-		sta direction
-		rts
-directionLeft
-		lda iobase
-		sta direction
-		rts
-directionRight
-		lda iobase
-		sta direction
-		rts
-		
-drawPlayer
 		lda direction
 		cmp up
 		beq moveUp
@@ -168,7 +151,7 @@ drawPlayer
 		beq moveLeft
 		cmp right
 		beq moveRight
-		rts
+		jmp checkCollision
 		
 moveUp
 		jsr erase
@@ -179,10 +162,6 @@ moveUp
 		lda playerLocH
 		sbc #0
 		sta playerLocH
-		
-		lda #$21
-		sta (playerLocL),y
-		jsr checkCollision
 		rts
 moveDown
 		jsr erase
@@ -193,10 +172,6 @@ moveDown
 		lda playerLocH
 		adc #0
 		sta playerLocH
-		
-		lda #$21
-		sta (playerLocL),y
-		jsr checkCollision
 		rts
 moveLeft
 		jsr erase
@@ -207,10 +182,6 @@ moveLeft
 		lda playerLocH
 		sbc #0
 		sta playerLocH
-		
-		lda #$21
-		sta (playerLocL),y
-		jsr checkCollision
 		rts
 
 moveRight
@@ -222,167 +193,43 @@ moveRight
 		lda playerLocH
 		adc #0
 		sta playerLocH
-		
-		lda #$21
-		sta (playerLocL),y	;draws the current loc
-		jsr checkCollision
 		rts
-
+		
 erase
 		ldy #0
 		lda #$20
-		sta (playerLocL),y	;erases the previous loc
-		rts
-
-eatFood
-		jsr initFood
+		sta (playerLocL),y	;erases the player pos
 		rts
 		
 checkCollision
-		jsr snakeCollision
-		jsr borderCollision
-		jsr foodCollision
+		jsr borderCheck
+		jsr foodCheck
 		rts
 		
-foodCollision
-		lda direction
-		cmp up
-		beq foodUp
-		cmp down
-		beq foodDown
-		cmp left
-		beq foodLeft
-		cmp right
-		beq foodRight
+borderCheck
+		lda (playerLocL),y
+		cmp #$30
+		beq gameOver
 		rts
-foodUp
-		sec
-		lda playerLocL
-		sbc #40
-		sta tempL
-		lda playerLocH
-		sbc #0
-		sta tempH
-				
-		ldy #0
-		lda (tempL),y
-		cmp #$22
-		beq	eatFood
-		rts
-foodDown
-		clc
-		lda playerLocL
-		adc #40
-		sta tempL
-		lda playerLocH
-		adc #0
-		sta tempH
-				
-		ldy #0
-		lda (tempL),y
-		cmp #$22
-		beq	eatFood
-		rts
-foodLeft
-		sec
-		lda playerLocL
-		sbc #1
-		sta tempL
-		lda playerLocH
-		sbc #0
-		sta tempH
 		
-		ldy #00
-		lda (tempL),y
-		cmp #$22
-		beq eatFood
-		rts
-foodRight
-		clc
-		lda playerLocL
-		adc #1
-		sta tempL
-		lda playerLocH
-		adc #0
-		sta tempH
-		
-		ldy #00
-		lda (tempL),y
+foodCheck
+		lda (playerLocL),y
 		cmp #$22
 		beq eatFood
 		rts
 		
-snakeCollision
+eatFood
+		jsr initFood
 		rts
-		
-borderCollision
-		lda direction
-		cmp up
-		beq borderUp
-		cmp down
-		beq borderDown
-		cmp left
-		beq borderLeft
-		cmp right
-		beq borderRight
-		rts
-borderUp
-		sec
-		lda playerLocL
-		sbc #40
-		sta tempL
-		lda playerLocH
-		sbc #0
-		sta tempH
-				
-		ldy #0
-		lda (tempL),y
-		cmp #$20
-		bne foodTest
-		rts
-borderDown
-		clc
-		lda playerLocL
-		adc #40
-		sta tempL
-		lda playerLocH
-		adc #0
-		sta tempH
-		
-		ldy #0
-		lda (tempL),y
-		cmp #$20
-		bne foodTest
-		rts
-borderLeft
-		lda playerLocL
-		cmp #$ff
-		beq colLeft
-		rts
-colLeft
-		lda playerLocH
-		cmp #$6f
-		beq gameOver
-borderRight
-		lda playerLocL
-		cmp #$e9
-		beq colRight
-		rts
-colRight
-		lda playerLocH
-		cmp #$73
-		beq gameOver
-		rts
-		
-foodTest
-		lda (tempL),y
-		cmp #$22
-		bne gameOver
+
+drawPlayer
+		lda #$21
+		sta (playerLocL),y
 		rts
 		
 gameOver
 		jmp start
-
+		
 clearScreen 
 		lda #$00
 		sta $03		;storing the low byte of the screen
@@ -410,7 +257,7 @@ clear
 		dex		;decrementing x for the row counter
 		cpx #$00 ;if the x register is 0 then we have cleared the screen
 		bne clear	;branches if we aren't done clearing the screen
-
+		rts
 		
 delay
 		txa
