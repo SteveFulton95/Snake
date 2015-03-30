@@ -24,6 +24,14 @@ foodH	= $19
 borderL	= $30
 borderH	= $31
 
+headStartL = $0a00
+headStartH = $0a01
+snakeIndexPtrL = $20
+snakeIndexPtrH = $21
+screenPtrL = $22
+screenPtrH = $23
+snakeBodyLength = $24 ; length of the snake
+
 ; w - #$77
 ; a - #$61
 ; s - #$73
@@ -41,11 +49,12 @@ tempH	= $21
 start	
 		cli
 		jsr clearScreen
-		jsr initBorder
+		;jsr initBorder
 		jsr initInput
 		jsr initPlayer
 		jsr initFood
 		jmp gameLoop
+brk
 		
 initBorder
 		lda #$d8
@@ -90,21 +99,37 @@ initInput
 		rts
 		
 initPlayer
+		; Beyond zero page there is an array of pointers to screen memory.
+		; These pointers represent the snakes position on screen.
+		; In order to access each pointer each byte of the pointer
+		; must be copied back to zero page then used to access the screen.
+		; If the array is made in zero page then it will begin to overflow
+		; to page two which causes bad things to happen.
+
+		; init the first snake body pointer (starting in page 10)
 		lda #$c8		;low byte of middle of screen
-		sta playerLocL
+		sta headStartL
+		sta screenPtrL
 		lda #$71		;high byte of middle of screen
-		sta playerLocH
+		sta headStartH
+		sta screenPtrH
+		
+		lda #8 ; the snakes body starts at 4 long
+		sta snakeBodyLength
+		
+		;draw the head to the screen
 		ldy #0
 		lda #$21
-		sta (playerLocL),y	;draws the player in start loc
+		sta (screenPtrL),y	;draws the player in start loc
+		
 		lda #$64			;starts the player moving right
 		sta direction
 		rts
 		
-initFood		;this doesnt really work
+initFood		;this doesn't really work
 		ldy #0
 		lda #$20
-		sta (foodL),y
+		;sta (foodL),y
 		lda iocmd
 		adc playerLocH
 		lsr
@@ -119,12 +144,13 @@ initFood		;this doesnt really work
 		rol
 		and #%01111111
 		sta foodL
-		lda #$22
+		lda #$2a
 		sta (foodL),y
 		rts
 		
 gameLoop
 		jsr getInput
+		;jsr updatePlayer
 		jsr checkCollision
 		jsr drawPlayer
 		jsr delay
@@ -138,10 +164,11 @@ getInput
 updateDirection
 		lda iobase
 		sta direction
-		jsr updatePlayer
-		rts
 
 updatePlayer
+		; change all of the snake pointers
+		jsr moveBody
+		;update the head of the snake based on input
 		lda direction
 		cmp up
 		beq moveUp
@@ -151,98 +178,167 @@ updatePlayer
 		beq moveLeft
 		cmp right
 		beq moveRight
-		jmp checkCollision
+		rts
 		
 moveUp
-		jsr erase
 		sec
-		lda playerLocL
+		lda headStartL
 		sbc #40
-		sta playerLocL
-		lda playerLocH
+		sta headStartL
+		lda headStartH
 		sbc #0
-		sta playerLocH
+		sta headStartH
 		rts
 moveDown
-		jsr erase
 		clc
-		lda playerLocL
+		lda headStartL
 		adc #40
-		sta playerLocL
-		lda playerLocH
+		sta headStartL
+		lda headStartH
 		adc #0
-		sta playerLocH
+		sta headStartH
 		rts
 moveLeft
-		jsr erase
 		sec
-		lda playerLocL
+		lda headStartL
 		sbc #1
-		sta playerLocL
-		lda playerLocH
+		sta headStartL
+		lda headStartH
 		sbc #0
-		sta playerLocH
+		sta headStartH
 		rts
 
 moveRight
-		jsr erase
 		clc
-		lda playerLocL
+		lda headStartL
 		adc #1
-		sta playerLocL
-		lda playerLocH
+		sta headStartL
+		lda headStartH
 		adc #0
-		sta playerLocH
+		sta headStartH
 		rts
 		
+moveBody
+		jsr erase ;erase the old tail position
+		jsr shift
+		rts
+		
+shift
+		;push all of the snake but the tail onto the stack
+		ldx #00
+pushStack
+		lda headStartL,x
+		pha
+		inx
+		cpx snakeBodyLength
+		bne pushStack
+		
+		ldx snakeBodyLength
+		inx
+bodyLoop
+		pla
+		sta headStartL,x
+		dex
+		cpx #01
+		bne bodyLoop
+		rts
+
 erase
 		ldy #0
+		
+		;make sure the snakeIndexPrt is pointing to the tail of the snake
+		clc
+		lda #$00
+		adc snakeBodyLength	; add the body length
+		sta snakeIndexPtrL
+		lda #$0a
+		adc #$00
+		sta snakeIndexPtrH
+		
+		; init the screen pointer to the last snake pointer
+		lda (snakeIndexPtrL),y
+		sta screenPtrL
+		iny
+		lda (snakeIndexPtrL),y
+		sta screenPtrH
+		
+		dey
 		lda #$20
-		sta (playerLocL),y	;erases the player pos
+		sta (screenPtrL),y	;erases the player pos
 		rts
 		
 checkCollision
 		jsr borderCheck
+		jsr selfCheck
 		jsr foodCheck
 		rts
 		
+selfCheck
+		ldy #00
+		lda headStartL
+		sta screenPtrL
+		lda headStartH
+		sta screenPtrH
+		lda (screenPtrL),y
+		cmp #$21
+		beq gameOver
+		rts
 borderCheck
-		lda (playerLocL),y
-		cmp #$30
+		ldy #00
+		lda headStartL
+		sta screenPtrL
+		lda headStartH
+		sta screenPtrH
+		lda (screenPtrL),y
+		cmp #$00
 		beq gameOver
 		rts
 		
 foodCheck
-		lda (playerLocL),y
-		cmp #$22
+		ldy #00
+		lda headStartL
+		sta screenPtrL
+		lda headStartH
+		sta screenPtrH
+		lda (screenPtrL),y
+		cmp #$2a
 		beq eatFood
 		rts
 		
 eatFood
 		jsr initFood
+		clc
+		lda #6
+		adc snakeBodyLength
+		sta snakeBodyLength
 		rts
 
 drawPlayer
+		ldy #00
+		lda headStartL
+		sta screenPtrL
+		lda headStartH
+		sta screenPtrH
 		lda #$21
-		sta (playerLocL),y
+		sta (screenPtrL),y
 		rts
 		
 gameOver
 		jmp start
 		
 clearScreen 
-		lda #$00
+		lda #$29
 		sta $03		;storing the low byte of the screen
 		lda #$70
 		sta $04		;storing the high byte of the screen
 		ldy #0
-		ldx #25
+		ldx #23
 		
 clear
 		lda #$20	;loading space into accumulator
 		sta ($03),y	;storing space into the appropriate screen address
 		iny
-		cpy #$28	;test if row was cleared
+		cpy #$26	;test if row was cleared
 		bne clear
 		
 		;changing rows
@@ -292,26 +388,3 @@ loop3
 		pla
 		tax
 		rts
-
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
