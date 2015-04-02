@@ -1,8 +1,8 @@
-; Name:				Steve Fulton
+; Name:				Steve Fulton and Dan Martin
 ; Course:			cpsc 370
 ; Instructor:			Dr. Conlon
 ; Date started:			February 7, 2015
-; Last modification:		March 19, 2015
+; Last modification:		April 01, 2015
 ; Purpose of programe:		snake game.
 
 	.CR	6502		; Assemble 6502 language
@@ -17,6 +17,8 @@ ioctrl	= iobase+3
 playerLocL	= $15
 playerLocH	= $16
 direction	= $17
+prevDir		= $27	;previous direction
+tempDir		= $28	;"goal" direction before verified correctness
 
 foodL	= $18
 foodH	= $19
@@ -144,27 +146,84 @@ initFood		;this doesn't really work
 		rol
 		and #%01111111
 		sta foodL
+		lda (foodL),y
+		cmp #$21
+		beq newPos
 		lda #$2a
 		sta (foodL),y
+		rts
+
+newPos	;i don't think this works. i was just screwing around
+		iny
+		lda (foodL),y
+		cmp #$21
+		beq newPos
+		ldy #$00
 		rts
 		
 gameLoop
 		jsr getInput
-		;jsr updatePlayer
+		jsr updatePlayer
 		jsr checkCollision
 		jsr drawPlayer
 		jsr delay
 		jmp gameLoop
+
+checkDirection	;compares the "goal" direction with wasd
+		lda tempDir
+		cmp up
+		beq checkDown	;branches to opposite
+		cmp down
+		beq checkUp
+		cmp left
+		beq checkRight
+		cmp right
+		beq checkLeft
+		rts
+		
+;if "goal" direction is opposite of current direction do nothing		
+checkUp
+		lda prevDir
+		cmp up
+		bne updateDirection
+		rts
+checkDown
+		lda prevDir
+		cmp down
+		bne updateDirection
+		rts
+checkLeft
+		lda prevDir
+		cmp left
+		bne updateDirection
+		rts
+checkRight
+		lda prevDir
+		cmp right
+		bne updateDirection
+		rts
+
+doneInput
+		rts
 		
 getInput
 		lda iostat		;read the ACIA status
 		and #%00001000	;checking if its empty
-		beq updatePlayer
-		
-updateDirection
+		beq doneInput
 		lda iobase
-		sta direction
-
+		sta tempDir
+		lda direction
+		sta prevDir
+		jsr checkDirection
+		rts
+		
+updateDirection	;updates previous and current direction
+		lda direction	;loads current direction
+		sta prevDir		;stores it into previous
+		lda iobase		;loads input direction
+		sta direction	;stores it into direction
+		rts
+		
 updatePlayer
 		; change all of the snake pointers
 		jsr moveBody
@@ -283,6 +342,7 @@ selfCheck
 		cmp #$21
 		beq gameOver
 		rts
+		
 borderCheck
 		ldy #00
 		lda headStartL
