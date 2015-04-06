@@ -23,9 +23,6 @@ tempDir		= $28	;"goal" direction before verified correctness
 foodL	= $18
 foodH	= $19
 
-borderL	= $30
-borderH	= $31
-
 headStartL = $0a00
 headStartH = $0a01
 snakeIndexPtrL = $20
@@ -56,30 +53,7 @@ start
 		jsr initPlayer
 		jsr initFood
 		jmp gameLoop
-brk
-		
-initBorder
-		lda #$d8
-		sta borderL
-		lda #$6f
-		sta borderH
-		ldy #0
-		jsr borderLoop
-		lda #$e8
-		sta borderL
-		lda #$73
-		sta borderH
-		ldy #0
-		jsr borderLoop
-		rts
-borderLoop
-		lda #$30
-		sta (borderL),y
-		iny
-		cpy #$28
-		bne borderLoop
-		rts
-		
+brk	
 		
 initInput
 		cli
@@ -162,17 +136,18 @@ newPos	;i don't think this works. i was just screwing around
 		rts
 		
 gameLoop
-		jsr getInput
-		jsr updatePlayer
-		jsr checkCollision
-		jsr drawPlayer
-		jsr delay
-		jmp gameLoop
+		jsr getInput		; gets and checks input from user
+		jsr updatePlayer	; updates the player position (does not draw)
+		jsr checkCollision	; checks the new position for collisions
+		jsr drawPlayer		; if no collisions - draw player
+		jsr delay			; delays the game so its playable
+		jmp gameLoop		; do it all again
 
+; checks the users input for a specific direction
 checkDirection	;compares the "goal" direction with wasd
-		lda tempDir
-		cmp up
-		beq checkDown	;branches to opposite
+		lda tempDir		;loads in the input from user
+		cmp up			;compares to 'w'
+		beq checkDown	;branches to opposite direction 'd'
 		cmp down
 		beq checkUp
 		cmp left
@@ -183,9 +158,9 @@ checkDirection	;compares the "goal" direction with wasd
 		
 ;if "goal" direction is opposite of current direction do nothing		
 checkUp
-		lda prevDir
-		cmp up
-		bne updateDirection
+		lda prevDir				; loads the previous direction
+		cmp up					; compares to 'w'
+		bne updateDirection		; if they arent equal we will updateDirection
 		rts
 checkDown
 		lda prevDir
@@ -204,33 +179,36 @@ checkRight
 		rts
 
 doneInput
-		rts
-		
+		rts	; all done with getting and checking the input
+
+; gets and checks for valid input		
 getInput
-		lda iostat		;read the ACIA status
-		and #%00001000	;checking if its empty
-		beq doneInput
-		lda iobase
-		sta tempDir
-		lda direction
-		sta prevDir
-		jsr checkDirection
+		lda iostat			; read the ACIA status
+		and #%00001000		; checking if its empty
+		beq doneInput		; branches if there was no input
+		lda iobase			; loads the input into accumulator
+		sta tempDir			; stores it in a temp direction
+		lda direction		; loads current direction
+		sta prevDir			; stores it into previous direction
+		jsr checkDirection	; jumps to checkDirection
 		rts
-		
+
+; updates the snakes direction		
 updateDirection	;updates previous and current direction
 		lda direction	;loads current direction
 		sta prevDir		;stores it into previous
 		lda iobase		;loads input direction
 		sta direction	;stores it into direction
 		rts
-		
+	
+; updates the players position (does not draw the player)	
 updatePlayer
 		; change all of the snake pointers
 		jsr moveBody
 		;update the head of the snake based on input
-		lda direction
-		cmp up
-		beq moveUp
+		lda direction	; loads direction into accumulator
+		cmp up			; compare to 'w'
+		beq moveUp		; branches if they are equal to move up
 		cmp down
 		beq moveDown
 		cmp left
@@ -238,21 +216,22 @@ updatePlayer
 		cmp right
 		beq moveRight
 		rts
-		
+
+; moves the snake up		
 moveUp
-		sec
-		lda headStartL
-		sbc #40
-		sta headStartL
-		lda headStartH
-		sbc #0
-		sta headStartH
+		sec				; set the carry
+		lda headStartL	; load headStartL into accumulator
+		sbc #40			; subtract with carry decimal 40
+		sta headStartL	; store it back into headStartL
+		lda headStartH	; load headStartH into accumulator
+		sbc #0			; subtract with carry decimal 0
+		sta headStartH	; store it back into headStartH
 		rts
 moveDown
-		clc
-		lda headStartL
-		adc #40
-		sta headStartL
+		clc				; clear the carry
+		lda headStartL	; load headStartL into accumulator
+		adc #40			; add with carry decimal 40
+		sta headStartL	; store it back into headStartL
 		lda headStartH
 		adc #0
 		sta headStartH
@@ -260,7 +239,7 @@ moveDown
 moveLeft
 		sec
 		lda headStartL
-		sbc #1
+		sbc #1			; decimal 1 because we aren't moving a row
 		sta headStartL
 		lda headStartH
 		sbc #0
@@ -327,22 +306,24 @@ erase
 		rts
 		
 checkCollision
-		jsr borderCheck
-		jsr selfCheck
-		jsr foodCheck
+		jsr borderCheck	; checks for snake collisions with the border
+		jsr selfCheck	; checks collision with the snake itself
+		jsr foodCheck	; checks for food collision
 		rts
-		
+
+; checks for the snake colliding into itself		
 selfCheck
 		ldy #00
 		lda headStartL
-		sta screenPtrL
+		sta screenPtrL	
 		lda headStartH
 		sta screenPtrH
 		lda (screenPtrL),y
 		cmp #$21
 		beq gameOver
 		rts
-		
+	
+; checks for the snake colliding into the border	
 borderCheck
 		ldy #00
 		lda headStartL
@@ -353,7 +334,8 @@ borderCheck
 		cmp #$00
 		beq gameOver
 		rts
-		
+	
+; checks for the snake colliding into food	
 foodCheck
 		ldy #00
 		lda headStartL
@@ -364,7 +346,8 @@ foodCheck
 		cmp #$2a
 		beq eatFood
 		rts
-		
+	
+; eats the food if there was food collision	
 eatFood
 		jsr initFood
 		clc
@@ -373,6 +356,7 @@ eatFood
 		sta snakeBodyLength
 		rts
 
+; draws the player based on the updated position of the player
 drawPlayer
 		ldy #00
 		lda headStartL
@@ -382,10 +366,12 @@ drawPlayer
 		lda #$21
 		sta (screenPtrL),y
 		rts
-		
+	
+; game is over. jump back to the start of the game	
 gameOver
 		jmp start
-		
+	
+; clears the screen and makes the border	
 clearScreen 
 		lda #$29
 		sta $03		;storing the low byte of the screen
@@ -414,7 +400,8 @@ clear
 		cpx #$00 ;if the x register is 0 then we have cleared the screen
 		bne clear	;branches if we aren't done clearing the screen
 		rts
-		
+	
+; delays the speed of the game so its playable and smooth	
 delay
 		txa
 		pha
