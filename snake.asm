@@ -1,12 +1,12 @@
-; Name:				Steve Fulton and Dan Martin
-; Course:			cpsc 370
-; Instructor:			Dr. Conlon
-; Date started:			February 7, 2015
+; Name:						Steve Fulton and Dan Martin
+; Course:					cpsc 370
+; Instructor:				Dr. Conlon
+; Date started:				February 7, 2015
 ; Last modification:		April 01, 2015
 ; Purpose of programe:		snake game.
 
-	.CR	6502		; Assemble 6502 language
-	.LI	on,toff		; Listing on, no timing included.
+	.CR	6502				; Assemble 6502 language
+	.LI	on,toff				; Listing on, no timing included.
 	.TF 	snake.prg,BIN	; Object file and format
 
 iobase	= $8800
@@ -14,22 +14,18 @@ iostat	= iobase+1
 iocmd	= iobase+2
 ioctrl	= iobase+3
 
-playerLocL	= $15
-playerLocH	= $16
-direction	= $17
-prevDir		= $27	;previous direction
-tempDir		= $28	;"goal" direction before verified correctness
+direction	= $17			; current direction
+prevDir		= $27			; previous direction
+tempDir		= $28			; "goal" direction before verified correctness
 
-foodL	= $18
-foodH	= $19
+foodL	= $18				; low byte of the food position on screen
+foodH	= $19				; high byte of the food position on screen
 
-headStartL = $0a00
-headStartH = $0a01
-snakeIndexPtrL = $20
-snakeIndexPtrH = $21
-screenPtrL = $22
-screenPtrH = $23
-snakeBodyLength = $24 ; length of the snake
+headStartL = $0a00			; starting position of the snake array
+headStartH = $0a01			
+screenPtrL = $22			; pointer used to access the screen
+screenPtrH = $23		
+snakeBodyLength = $24 		; length of the snake in bytes
 
 ; w - #$77
 ; a - #$61
@@ -80,59 +76,62 @@ initPlayer
 		; In order to access each pointer each byte of the pointer
 		; must be copied back to zero page then used to access the screen.
 		; If the array is made in zero page then it will begin to overflow
-		; to page two which causes bad things to happen.
+		; on to page two which causes bad things to happen.
 
 		; init the first snake body pointer (starting in page 10)
-		lda #$c8		;low byte of middle of screen
+		lda #$c8			;low byte of middle of screen
 		sta headStartL
 		sta screenPtrL
-		lda #$71		;high byte of middle of screen
+		lda #$71			;high byte of middle of screen
 		sta headStartH
 		sta screenPtrH
 		
-		lda #8 ; the snakes body starts at 4 long
+		lda #8				; the snakes body starts as 8 bytes of pointers
 		sta snakeBodyLength
-		
-		;draw the head to the screen
+							;draw the head to the screen
 		ldy #0
 		lda #$21
-		sta (screenPtrL),y	;draws the player in start loc
+		sta (screenPtrL),y	;draws the player in starting location
 		
 		lda #$64			;starts the player moving right
 		sta direction
 		rts
 		
-initFood		;this doesn't really work
+initFood
+		; This subroutine pseudo-randomly places food on the screen
+		; if it detects a conflict in the chosen location it will replace
+		; the food to a new pseudo-random position.
 		ldy #0
-		lda #$20
-		;sta (foodL),y
+		ldx #0
+replaceFood
+		; This basically just puts a bunch of variables together
+		; and tries to get something seemingly random out of it.
+		; I tried to use as many variables as possible to make the food
+		; placement follow basically no discernible pattern
 		lda iocmd
-		adc playerLocH
-		lsr
-		sbc playerLocL
-		and #%00000011
-		clc
-		adc #$70
+		adc foodL
+		rol
+		sbc screenPtrL
+		and #%00000011		; Make sure the high byte is 73 or less
+		clc					; I do this by anding the combination of
+		adc #$70			; variables with 3 then adding 70.
 		sta foodH
 		
-		lda playerLocL
-		sbc tempL
+		txa
+		sbc screenPtrL
+		eor snakeBodyLength
+		adc #$01
+		adc foodH
 		rol
-		and #%01111111
+		and #$e8
 		sta foodL
-		lda (foodL),y
-		cmp #$21
-		beq newPos
-		lda #$2a
+		inx					
+		lda (foodL),y		; If the food placement is not blank try again
+		cmp #$20
+		bne replaceFood
+		
+		lda #$2a			; Store the food on screen
 		sta (foodL),y
-		rts
-
-newPos	;i don't think this works. i was just screwing around
-		iny
-		lda (foodL),y
-		cmp #$21
-		beq newPos
-		ldy #$00
 		rts
 		
 gameLoop
@@ -145,9 +144,9 @@ gameLoop
 
 ; checks the users input for a specific direction
 checkDirection	;compares the "goal" direction with wasd
-		lda tempDir		;loads in the input from user
-		cmp up			;compares to 'w'
-		beq checkDown	;branches to opposite direction 'd'
+		lda tempDir			;loads in the input from user
+		cmp up				;compares to 'w'
+		beq checkDown		;branches to opposite direction 'd'
 		cmp down
 		beq checkUp
 		cmp left
@@ -194,21 +193,21 @@ getInput
 		rts
 
 ; updates the snakes direction		
-updateDirection	;updates previous and current direction
-		lda direction	;loads current direction
-		sta prevDir		;stores it into previous
-		lda iobase		;loads input direction
-		sta direction	;stores it into direction
+updateDirection				;updates previous and current direction
+		lda direction		;loads current direction
+		sta prevDir			;stores it into previous
+		lda iobase			;loads input direction
+		sta direction		;stores it into direction
 		rts
 	
 ; updates the players position (does not draw the player)	
 updatePlayer
-		; change all of the snake pointers
+							; change all of the snake pointers
 		jsr moveBody
-		;update the head of the snake based on input
-		lda direction	; loads direction into accumulator
-		cmp up			; compare to 'w'
-		beq moveUp		; branches if they are equal to move up
+							;update the head of the snake based on input
+		lda direction		; loads direction into accumulator
+		cmp up				; compare to 'w'
+		beq moveUp			; branches if they are equal to move up
 		cmp down
 		beq moveDown
 		cmp left
@@ -219,19 +218,19 @@ updatePlayer
 
 ; moves the snake up		
 moveUp
-		sec				; set the carry
-		lda headStartL	; load headStartL into accumulator
-		sbc #40			; subtract with carry decimal 40
-		sta headStartL	; store it back into headStartL
-		lda headStartH	; load headStartH into accumulator
-		sbc #0			; subtract with carry decimal 0
-		sta headStartH	; store it back into headStartH
+		sec					; set the carry
+		lda headStartL		; load headStartL into accumulator
+		sbc #40				; subtract with carry decimal 40
+		sta headStartL		; store it back into headStartL
+		lda headStartH		; load headStartH into accumulator
+		sbc #0				; subtract with carry decimal 0
+		sta headStartH		; store it back into headStartH
 		rts
 moveDown
-		clc				; clear the carry
-		lda headStartL	; load headStartL into accumulator
-		adc #40			; add with carry decimal 40
-		sta headStartL	; store it back into headStartL
+		clc					; clear the carry
+		lda headStartL		; load headStartL into accumulator
+		adc #40				; add with carry decimal 40
+		sta headStartL		; store it back into headStartL
 		lda headStartH
 		adc #0
 		sta headStartH
@@ -239,7 +238,7 @@ moveDown
 moveLeft
 		sec
 		lda headStartL
-		sbc #1			; decimal 1 because we aren't moving a row
+		sbc #1				; decimal 1 because we aren't moving a row
 		sta headStartL
 		lda headStartH
 		sbc #0
@@ -257,13 +256,16 @@ moveRight
 		rts
 		
 moveBody
-		jsr erase ;erase the old tail position
-		jsr shift
-		rts
+		; This subroutine shifts the entire array of pointers that
+		; represent the snake so that it can move smoothly without
+		; having to redraw the entire snake
 		
-shift
-		;push all of the snake but the tail onto the stack
-		ldx #00
+		jsr erase 				; erase the old tail position
+		jsr shift 				; shift the array of snake pointers
+		rts						; to prepare for a new head to be made
+		
+shift							; push all of the snake except
+		ldx #00					; the last tail pointer onto the stack
 pushStack
 		lda headStartL,x
 		pha
@@ -273,8 +275,9 @@ pushStack
 		
 		ldx snakeBodyLength
 		inx
-bodyLoop
-		pla
+								; pop off the pointers in reverse order
+bodyLoop						; and store them shifted down by 2 back
+		pla						; the array
 		sta headStartL,x
 		dex
 		cpx #01
@@ -283,32 +286,23 @@ bodyLoop
 
 erase
 		ldy #0
-		
-		;make sure the snakeIndexPrt is pointing to the tail of the snake
-		clc
-		lda #$00
-		adc snakeBodyLength	; add the body length
-		sta snakeIndexPtrL
-		lda #$0a
-		adc #$00
-		sta snakeIndexPtrH
-		
 		; init the screen pointer to the last snake pointer
-		lda (snakeIndexPtrL),y
+		ldy snakeBodyLength
+		lda headStartL,y
 		sta screenPtrL
 		iny
-		lda (snakeIndexPtrL),y
+		lda headStartL,y
 		sta screenPtrH
 		
-		dey
+		ldy #$00
 		lda #$20
-		sta (screenPtrL),y	;erases the player pos
+		sta (screenPtrL),y		;erases the tail
 		rts
 		
 checkCollision
-		jsr borderCheck	; checks for snake collisions with the border
-		jsr selfCheck	; checks collision with the snake itself
-		jsr foodCheck	; checks for food collision
+		jsr borderCheck			; checks for snake collisions with the border
+		jsr selfCheck			; checks collision with the snake itself
+		jsr foodCheck			; checks for food collision
 		rts
 
 ; checks for the snake colliding into itself		
@@ -349,7 +343,7 @@ foodCheck
 	
 ; eats the food if there was food collision	
 eatFood
-		jsr initFood
+		jsr initFood		; place a new random food
 		clc
 		lda #6
 		adc snakeBodyLength
@@ -389,49 +383,29 @@ clear
 		
 		;changing rows
 		clc
-		ldy #0	;reseting the y register
-		lda $03	;loading the value in memory 03
-		adc #40	;adding 40 to that value
-		sta $03	;storing it back into memory 03
+		ldy #0		;reseting the y register
+		lda $03		;loading the value in memory 03
+		adc #40		;adding 40 to that value
+		sta $03		;storing it back into memory 03
 		lda $04
 		adc #00
 		sta $04
-		dex		;decrementing x for the row counter
-		cpx #$00 ;if the x register is 0 then we have cleared the screen
+		dex			;decrementing x for the row counter
+		cpx #$00 	;if the x register is 0 then we have cleared the screen
 		bne clear	;branches if we aren't done clearing the screen
 		rts
 	
 ; delays the speed of the game so its playable and smooth	
+; this basically just right shifts register a for some number of times
 delay
-		txa
-		pha
-		tya
-		pha
-		ldy $ff
-bigDelay
-		ldx $ff
-		tya
-		pha
-		lda #00
-delayLoop
+		ldx #$e0
+		lda #$ff
+delayLoop1
+		ldy #$ff
+delayLoop2
+		lsr 
+		dey
+		bne delayLoop2
 		dex
-		ldy #$01
-loop3	
-		;sbc #10
-		dey
-		cpy #$00
-		bne loop3
-		
-		cpx $00
-		bne delayLoop
-		pla
-		tay
-		dey
-		cpy $00
-		bne bigDelay
-		
-		pla
-		tay
-		pla
-		tax
+		bne delayLoop1
 		rts
