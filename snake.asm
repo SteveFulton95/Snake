@@ -2,7 +2,7 @@
 ; Course:					cpsc 370
 ; Instructor:				Dr. Conlon
 ; Date started:				February 7, 2015
-; Last modification:		April 01, 2015
+; Last modification:		April 08, 2015
 ; Purpose of programe:		snake game.
 
 	.CR	6502				; Assemble 6502 language
@@ -44,29 +44,29 @@ tempH	= $21
 start	
 		cli
 		jsr clearScreen
-		;jsr initBorder
 		jsr initInput
 		jsr initPlayer
 		jsr initFood
 		jmp gameLoop
 brk	
-		
+	
 initInput
+		; sets what keys are up, down, left, and right	
 		cli
-		lda #%00001011
+		lda #%00001011	;Taken from Dr. Conlon
 		sta iocmd
 		lda #%00011010
 		sta ioctrl
 		lda #$00
 		sta iostat
 		
-		lda #$77
-		sta up
-		lda #$73
+		lda #$77	; hex value for 'w'
+		sta up		; store in up
+		lda #$73	; hex value for 's'
 		sta down
-		lda #$61
+		lda #$61	; hex value for 'a'
 		sta left
-		lda #$64
+		lda #$64	; hex value for 'd'
 		sta right
 		rts
 		
